@@ -1,17 +1,17 @@
 const express = require('express');
 const Database = require('better-sqlite3');
 const path = require('path');
+const os = require('os');
 
 const app = express();
-const db = new Database('control_asistencia.db'); // Esto crea el archivo automáticamente
+const db = new Database('control_asistencia.db');
 const PORT = 3000;
 
 // --- CONFIGURACIÓN ---
-app.use(express.json()); // Permite que Express entienda datos JSON enviados desde el frontend
-app.use(express.static('public')); // Sirve tus archivos HTML, CSS y JS desde la carpeta 'public'
+app.use(express.json());
+app.use(express.static('public'));
 
 // --- CREACIÓN DE TABLAS ---
-// Usamos "run" para ejecutar comandos SQL
 db.exec(`
   CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,6 @@ db.exec(`
 
 // --- RUTAS DE LA API ---
 
-// 1. Obtener todos los registros para el historial (con filtros opcionales)
 app.get('/api/historial', (req, res) => {
     const { inicio, fin } = req.query;
     let query = `
@@ -51,38 +50,29 @@ app.get('/api/historial', (req, res) => {
     res.json(rows);
 });
 
-// 2. Registrar una entrada o salida inteligente mediante QR
 app.post('/api/marcar', (req, res) => {
     const { codigo_qr } = req.body; 
-
-    // Buscamos si el usuario existe por su código QR
     const usuario = db.prepare('SELECT id FROM usuarios WHERE codigo_qr = ?').get(codigo_qr);
 
     if (!usuario) {
         return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
 
-    // Buscamos el último registro del usuario en el día de hoy según horario de Perú (UTC-5)
     const ultimoRegistro = db.prepare(`
         SELECT tipo FROM registros 
         WHERE usuario_id = ? AND date(fecha_hora, '-5 hours') = date('now', '-5 hours')
         ORDER BY id DESC LIMIT 1
     `).get(usuario.id);
 
-    // Si no hay registros hoy o el último fue SALIDA, marcamos ENTRADA.
-    // Si el último fue ENTRADA, marcamos SALIDA.
     let nuevoTipo = 'ENTRADA';
     if (ultimoRegistro && ultimoRegistro.tipo === 'ENTRADA') {
         nuevoTipo = 'SALIDA';
     }
 
-    // Insertamos el registro
     db.prepare('INSERT INTO registros (usuario_id, tipo) VALUES (?, ?)').run(usuario.id, nuevoTipo);
-    
     res.json({ success: true, message: `Registro de ${nuevoTipo} exitoso`, tipo: nuevoTipo });
 });
 
-// 3. Crear un nuevo usuario
 app.post('/api/usuarios', (req, res) => {
     const { nombre, codigo_qr } = req.body;
     try {
@@ -93,13 +83,11 @@ app.post('/api/usuarios', (req, res) => {
     }
 });
 
-// 4. Obtener todos los usuarios (para gestión)
 app.get('/api/usuarios', (req, res) => {
     const usuarios = db.prepare('SELECT * FROM usuarios ORDER BY nombre ASC').all();
     res.json(usuarios);
 });
 
-// 5. Actualizar usuario
 app.put('/api/usuarios/:id', (req, res) => {
     const { id } = req.params;
     const { nombre, codigo_qr } = req.body;
@@ -111,7 +99,6 @@ app.put('/api/usuarios/:id', (req, res) => {
     }
 });
 
-// 6. Eliminar usuario e historial
 app.delete('/api/usuarios/:id', (req, res) => {
     const { id } = req.params;
     try {
@@ -126,7 +113,6 @@ app.delete('/api/usuarios/:id', (req, res) => {
     }
 });
 
-// 7. Estadísticas del Dashboard
 app.get('/api/estadisticas', (req, res) => {
     try {
         const stats = db.prepare(`
@@ -149,6 +135,31 @@ app.get('/api/estadisticas', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Servidor listo en http://localhost:${PORT}`);
+function getLocalIps() {
+    const interfaces = os.networkInterfaces();
+    const ips = [];
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                ips.push({ name, address: iface.address });
+            }
+        }
+    }
+    return ips;
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+    const ips = getLocalIps();
+    const hostname = os.hostname();
+    console.log(`🚀 Servidor listo!`);
+    console.log(`- En este PC:  http://localhost:${PORT}`);
+    
+    console.log(`- En la red (usa la de Wi-Fi):`);
+    ips.forEach(ip => {
+        console.log(`  > http://${ip.address}:${PORT}  (${ip.name})`);
+    });
+    
+    console.log(`- Por nombre:  http://${hostname}.local:${PORT}`);
+    console.log(`\n⚠️  IMPORTANTE: Para usar la cámara en el celular necesitas HTTPS.`);
+    console.log(`   Puedes usar: npx localtunnel --port ${PORT}`);
 });

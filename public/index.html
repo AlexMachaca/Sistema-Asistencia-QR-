@@ -88,8 +88,8 @@
 
         <section id="escanear" style="display:none">
             <h2>Escanear Código QR</h2>
-            <div id="reader" style="width: 500px"></div>
-            <p id="resultado"></p>
+            <div id="reader" style="width: 100%; max-width: 500px; margin: 0 auto;"></div>
+            <p id="resultado" style="text-align: center; font-weight: bold; margin-top: 1rem;"></p>
         </section>
 
         <section id="usuarios" style="display:none">
@@ -389,6 +389,72 @@
             const libro = XLSX.utils.table_to_book(tabla, { sheet: "Asistencia" });
             const fechaActual = new Date().toISOString().split('T')[0];
             XLSX.writeFile(libro, `Reporte_Asistencia_${fechaActual}.xlsx`);
+        }
+
+        // --- CÁMARA / ESCÁNER ---
+        function encenderCamara() {
+            if (html5QrCode) {
+                try {
+                    html5QrCode.stop().then(() => iniciarEscaner()).catch(() => iniciarEscaner());
+                    return;
+                } catch(e) {}
+            }
+            iniciarEscaner();
+        }
+
+        function iniciarEscaner() {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            };
+
+            // Intentamos usar la cámara trasera directamente
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                onScanSuccess
+            ).catch(err => {
+                console.error("Error al iniciar cámara:", err);
+                document.getElementById('resultado').innerText = "⚠️ Error: No se pudo acceder a la cámara. Asegúrate de estar en HTTPS.";
+                document.getElementById('resultado').style.color = "red";
+            });
+        }
+
+        async function onScanSuccess(decodedText) {
+            // Pausamos el escaneo para procesar
+            await html5QrCode.pause();
+            
+            try {
+                const res = await fetch('/api/marcar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codigo_qr: decodedText })
+                });
+                
+                const data = await res.json();
+                const resP = document.getElementById('resultado');
+                
+                if (data.success) {
+                    resP.innerText = `✅ ${data.message}`;
+                    resP.style.color = "green";
+                    playSuccessSound();
+                } else {
+                    resP.innerText = `❌ ${data.message}`;
+                    resP.style.color = "red";
+                    playErrorSound();
+                }
+            } catch (err) {
+                document.getElementById('resultado').innerText = "❌ Error de conexión";
+                playErrorSound();
+            }
+
+            // Esperamos 2 segundos y reanudamos
+            setTimeout(() => {
+                document.getElementById('resultado').innerText = "";
+                html5QrCode.resume();
+            }, 2000);
         }
     </script>
 </body>
