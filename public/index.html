@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Acceso QR</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .ficha-card {
+            border: 2px solid #eee;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 350px;
+            margin: 2rem auto;
+            background: white;
+            color: black;
+        }
+        #qrVisual {
+            display: flex;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+        .stat-number {
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin: 0;
+            color: var(--primary);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 2rem;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #fichaUsuario, #fichaUsuario * {
+                visibility: visible;
+            }
+            #fichaUsuario {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                border: none;
+            }
+            #btnImprimir {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h1>Sistema de Asistencia QR</h1>
+        
+        <nav>
+            <ul>
+                <li><a href="#" onclick="showSection('dashboard')">Tablero</a></li>
+                <li><a href="#" onclick="showSection('escanear')">Escanear</a></li>
+                <li><a href="#" onclick="showSection('usuarios')">Usuarios</a></li>
+                <li><a href="#" onclick="showSection('historial')">Historial</a></li>
+            </ul>
+        </nav>
+
+        <section id="dashboard">
+            <h2>Resumen del Día</h2>
+            <div class="grid">
+                <article class="stat-card">
+                    <header>👥 Usuarios Presentes</header>
+                    <p class="stat-number" id="statPresentes">0</p>
+                    <footer>Personas en el local</footer>
+                </article>
+                <article class="stat-card">
+                    <header>📊 Movimientos Hoy</header>
+                    <p class="stat-number" id="statTotal">0</p>
+                    <footer>Entradas y salidas totales</footer>
+                </article>
+            </div>
+            <div style="text-align: center; margin-top: 1rem;">
+                <button class="outline" onclick="cargarEstadisticas()">Actualizar Datos 🔄</button>
+            </div>
+        </section>
+
+        <section id="escanear" style="display:none">
+            <h2>Escanear Código QR</h2>
+            <div id="reader" style="width: 500px"></div>
+            <p id="resultado"></p>
+        </section>
+
+        <section id="usuarios" style="display:none">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Gestión de Usuarios</h2>
+                <button onclick="abrirModalUsuario()">+ Nuevo Usuario</button>
+            </div>
+
+            <input type="text" id="busquedaUsuario" placeholder="🔍 Buscar por nombre o código..." onkeyup="filtrarUsuarios()">
+
+            <table id="tablaUsuarios">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Código QR</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <div id="fichaUsuario" style="display:none" class="ficha-card">
+                <h3 id="fichaNombre"></h3>
+                <div id="qrVisual"></div>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btnImprimir" onclick="imprimirFicha()" class="secondary">Imprimir</button>
+                    <button id="btnDescargar" onclick="descargarImagen()" class="outline">Descargar Imagen</button>
+                    <button onclick="document.getElementById('fichaUsuario').style.display='none'" class="contrast">Cerrar</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal para Crear/Editar Usuario -->
+        <dialog id="modalUsuario">
+            <article>
+                <header>
+                    <a href="#close" aria-label="Close" class="close" onclick="cerrarModalUsuario()"></a>
+                    <h3 id="modalTitulo">Nuevo Usuario</h3>
+                </header>
+                <input type="hidden" id="usuarioId">
+                <label>Nombre Completo:
+                    <input type="text" id="nombreUsuario" placeholder="Ej. Juan Pérez">
+                </label>
+                <label>Código QR (DNI o ID):
+                    <input type="text" id="codigoUsuario" placeholder="Ej. 70654321">
+                </label>
+                <footer>
+                    <button class="secondary" onclick="cerrarModalUsuario()">Cancelar</button>
+                    <button onclick="guardarUsuario()">Guardar Cambios</button>
+                </footer>
+            </article>
+        </dialog>
+
+        <section id="historial" style="display:none">
+            <h2>Historial de Movimientos</h2>
+            
+            <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 20px;">
+                <label>Desde: <input type="date" id="fechaInicio"></label>
+                <label>Hasta: <input type="date" id="fechaFin"></label>
+                <button onclick="cargarHistorial()">Filtrar</button>
+                <button onclick="exportarExcel()" class="contrast">Exportar Excel</button>
+            </div>
+
+            <table id="tablaHistorial">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Fecha/Hora</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        let html5QrCode;
+        
+        // --- SISTEMA DE SONIDOS ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(freq, type, duration, volume = 0.1) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        function playSuccessSound() {
+            // Un doble "beep" agudo
+            playSound(880, 'sine', 0.1);
+            setTimeout(() => playSound(1100, 'sine', 0.1), 100);
+        }
+
+        function playErrorSound() {
+            // Un tono grave y rudo
+            playSound(150, 'sawtooth', 0.4, 0.2);
+        }
+
+        // Al cargar la página, mostramos el Dashboard por defecto
+        window.onload = () => {
+            showSection('dashboard');
+        };
+
+        function showSection(id) {
+            document.querySelectorAll('section').forEach(s => s.style.display = 'none');
+            document.getElementById(id).style.display = 'block';
+            
+            // Si entramos a escanear, encendemos la cámara
+            if (id === 'escanear') {
+                encenderCamara();
+            } else {
+                if (html5QrCode) {
+                    try { html5QrCode.stop(); } catch(e) {}
+                }
+            }
+
+            if (id === 'historial') cargarHistorial();
+            if (id === 'usuarios') cargarUsuarios();
+            if (id === 'dashboard') cargarEstadisticas();
+        }
+
+        // --- DASHBOARD ---
+        async function cargarEstadisticas() {
+            try {
+                const res = await fetch('/api/estadisticas');
+                const stats = await res.json();
+                document.getElementById('statPresentes').innerText = stats.presentesAhora;
+                document.getElementById('statTotal').innerText = stats.totalHoy;
+            } catch (err) {
+                console.error("Error al cargar estadísticas", err);
+            }
+        }
+
+        // --- GESTIÓN DE USUARIOS (CRUD) ---
+        async function cargarUsuarios() {
+            const res = await fetch('/api/usuarios');
+            const usuarios = await res.json();
+            const tbody = document.querySelector('#tablaUsuarios tbody');
+            tbody.innerHTML = usuarios.map(u => `
+                <tr>
+                    <td>${u.nombre}</td>
+                    <td><code>${u.codigo_qr}</code></td>
+                    <td>
+                        <button class="outline" onclick="verFicha('${u.nombre}', '${u.codigo_qr}')" title="Ver Ficha">👁️</button>
+                        <button class="outline" onclick="abrirModalUsuario(${u.id}, '${u.nombre}', '${u.codigo_qr}')" title="Editar">✏️</button>
+                        <button class="outline contrast" onclick="eliminarUsuario(${u.id})" title="Eliminar">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function abrirModalUsuario(id = null, nombre = '', codigo = '') {
+            document.getElementById('modalTitulo').innerText = id ? 'Editar Usuario' : 'Nuevo Usuario';
+            document.getElementById('usuarioId').value = id || '';
+            document.getElementById('nombreUsuario').value = nombre;
+            document.getElementById('codigoUsuario').value = codigo;
+            document.getElementById('modalUsuario').setAttribute('open', true);
+        }
+
+        function cerrarModalUsuario() {
+            document.getElementById('modalUsuario').removeAttribute('open');
+        }
+
+        async function guardarUsuario() {
+            const id = document.getElementById('usuarioId').value;
+            const nombre = document.getElementById('nombreUsuario').value;
+            const codigo_qr = document.getElementById('codigoUsuario').value;
+
+            if (!nombre || !codigo_qr) return alert("Rellena todos los campos");
+
+            const url = id ? `/api/usuarios/${id}` : '/api/usuarios';
+            const method = id ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, codigo_qr })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                cerrarModalUsuario();
+                cargarUsuarios();
+                if (!id) verFicha(nombre, codigo_qr); // Si es nuevo, mostrar ficha
+            } else {
+                alert("Error: " + data.message);
+            }
+        }
+
+        async function eliminarUsuario(id) {
+            if (!confirm("¿Estás seguro de eliminar este usuario? Se borrará todo su historial de asistencia.")) return;
+
+            const res = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) cargarUsuarios();
+        }
+
+        function verFicha(nombre, codigo) {
+            const qrDiv = document.getElementById("qrVisual");
+            qrDiv.innerHTML = "";
+            new QRCode(qrDiv, { text: codigo, width: 200, height: 200 });
+            document.getElementById("fichaNombre").innerText = nombre;
+            document.getElementById("fichaUsuario").style.display = "block";
+            document.getElementById("fichaUsuario").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function filtrarUsuarios() {
+            const busqueda = document.getElementById('busquedaUsuario').value.toLowerCase();
+            const filas = document.querySelectorAll('#tablaUsuarios tbody tr');
+            filas.forEach(fila => {
+                const contenido = fila.innerText.toLowerCase();
+                fila.style.display = contenido.includes(busqueda) ? '' : 'none';
+            });
+        }
+
+        function imprimirFicha() {
+            window.print();
+        }
+
+        async function descargarImagen() {
+            const ficha = document.getElementById('fichaUsuario');
+            const botones = document.querySelector('#fichaUsuario div[style*="display: flex"]');
+            
+            // Ocultamos los botones temporalmente para que no salgan en la foto
+            botones.style.display = 'none';
+            
+            const canvas = await html2canvas(ficha);
+            const link = document.createElement('a');
+            link.download = `ficha_${document.getElementById('fichaNombre').innerText}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            
+            // Volvemos a mostrar los botones
+            botones.style.display = 'flex';
+        }
+
+        async function cargarHistorial() {
+            let inicio = document.getElementById('fechaInicio').value;
+            let fin = document.getElementById('fechaFin').value;
+
+            // Si no hay fechas seleccionadas (primera carga), ponemos hoy en horario Perú
+            if (!inicio || !fin) {
+                const ahoraPeru = new Intl.DateTimeFormat('en-CA', { 
+                    timeZone: 'America/Lima', 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit' 
+                }).format(new Date());
+                
+                document.getElementById('fechaInicio').value = ahoraPeru;
+                document.getElementById('fechaFin').value = ahoraPeru;
+                inicio = ahoraPeru;
+                fin = ahoraPeru;
+            }
+
+            const res = await fetch(`/api/historial?inicio=${inicio}&fin=${fin}`);
+            const datos = await res.json();
+            const tbody = document.querySelector('#tablaHistorial tbody');
+            tbody.innerHTML = datos.map(r => {
+                // Forzamos que la fecha se interprete como UTC añadiendo 'Z'
+                const fechaUTC = new Date(r.fecha_hora.replace(' ', 'T') + 'Z');
+                const fechaPeru = fechaUTC.toLocaleString('es-PE', { 
+                    timeZone: 'America/Lima',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                });
+
+                return `
+                    <tr>
+                        <td>${r.nombre}</td>
+                        <td><strong>${r.tipo}</strong></td>
+                        <td>${fechaPeru}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function exportarExcel() {
+            const tabla = document.getElementById("tablaHistorial");
+            const libro = XLSX.utils.table_to_book(tabla, { sheet: "Asistencia" });
+            const fechaActual = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(libro, `Reporte_Asistencia_${fechaActual}.xlsx`);
+        }
+    </script>
+</body>
+</html>
