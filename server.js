@@ -5,7 +5,7 @@ const os = require('os');
 
 const app = express();
 const db = new Database('control_asistencia.db');
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // --- CONFIGURACIÓN ---
 app.use(express.json());
