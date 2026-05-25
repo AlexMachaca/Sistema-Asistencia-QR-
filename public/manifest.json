@@ -1,0 +1,16 @@
+{
+  "name": "Sistema de Control de Asistencia QR",
+  "short_name": "Asistencia QR",
+  "description": "Sistema para control de asistencia usando códigos QR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11191f",
+  "theme_color": "#11191f",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2415/2415286.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

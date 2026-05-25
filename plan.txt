@@ -1,0 +1,38 @@
+# PLAN DE IMPLEMENTACIÓN - SISTEMA INSTITUCIONAL (BACKEND ONLY)
+
+## FASE 1: Rediseño del Backend y Base de Datos (COMPLETADO)
+- [x] Diseñar el esquema SQL completo (Institución, Sedes, Aulas, Usuarios, Roles, Justificaciones).
+- [x] Implementar estructura de carpetas `src` (controllers, routes, config, utils).
+- [x] Implementar sistema de Autenticación con JWT (JSON Web Tokens).
+- [x] Refactorizar la base de datos para agregar campos `activo`, `created_at`, `updated_at`.
+- [x] Estandarizar respuestas HTTP (statusCode, isSuccess, data, messages).
+- [x] Endpoints CRUD para Sedes.
+- [x] Endpoints básicos de CRUD para Usuarios.
+- [x] Endpoints básicos de CRUD para Aulas y Horarios.
+
+## FASE 2: Lógica de QR Dinámico y Asistencia (COMPLETADO)
+- [x] Integrar librería TOTP (ej. otplib o speakeasy) en el servidor.
+- [x] Crear endpoint para asignar secrets a los usuarios y generar QRs iniciales.
+- [x] Actualizar la lógica de marcado para validar el token TOTP dinámico.
+- [x] Crear lógica de tardanzas automáticas (basado en el horario del aula/sede).
+
+## FASE 3: Endpoints de Consulta para Estudiantes y Reportes (SIGUIENTE PASO)
+- [ ] **Módulo Estudiante:**
+    - [ ] Endpoint para listar cursos/aulas asignadas al estudiante (incluyendo nombre del docente).
+    - [ ] Endpoint para ver historial de asistencia personal filtrado por curso.
+    - [ ] Endpoint para ver el perfil del estudiante y su estado actual.
+- [ ] **Módulo de Reportes (Admin/Docente):**
+    - [ ] Endpoint para obtener reportes de asistencia por aula y fecha.
+    - [ ] Endpoint para resumen de asistencias/tardanzas/faltas por alumno.
+- [ ] **Justificaciones:**
+    - [ ] Endpoint para que el estudiante suba una solicitud de justificación.
+    - [ ] Endpoint para que el admin/docente apruebe o rechace justificaciones.
+
+## FASE 4: Refinamiento y Documentación (PENDIENTE)
+- [ ] Optimización de consultas SQL (Joins para traer nombres de docentes y sedes).
+- [ ] Implementar exportación de datos a PDF/Excel (opcional en backend via stream).
+- [ ] Documentación completa en `ENDPOINTS.md` con los nuevos cambios.
+
+## PRUEBAS Y VALIDACIÓN (PENDIENTE)
+- [ ] Pruebas de Seguridad (QR expirado, acceso no autorizado a datos de otros estudiantes).
+- [ ] Pruebas de Roles (RBAC estricto para los nuevos endpoints).

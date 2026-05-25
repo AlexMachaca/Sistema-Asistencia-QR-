@@ -53,6 +53,8 @@
             }
         }
     </style>
+    <meta name="theme-color" content="#11191f">
+    <link rel="manifest" href="/manifest.json">
 </head>
 <body>
     <main class="container">
@@ -455,6 +457,18 @@
                 document.getElementById('resultado').innerText = "";
                 html5QrCode.resume();
             }, 2000);
+        }
+        // --- REGISTRO DEL SERVICE WORKER (PWA) ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registrado con éxito con el scope:', registration.scope);
+                    })
+                    .catch(err => {
+                        console.error('El registro del ServiceWorker falló:', err);
+                    });
+            });
         }
     </script>
 </body>
